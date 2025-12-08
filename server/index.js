@@ -272,6 +272,21 @@ async function getPendingPurchase(sessionId) {
     }
 }
 
+// Get pending purchase by email (fallback lookup)
+async function getPendingPurchaseByEmail(email) {
+    const client = await pool.connect();
+    try {
+        // Get most recent pending purchase for this email
+        const result = await client.query(
+            'SELECT * FROM pending_purchases WHERE email = $1 ORDER BY created_at DESC LIMIT 1',
+            [email]
+        );
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
+}
+
 // Delete pending purchase
 async function deletePendingPurchase(sessionId) {
     const client = await pool.connect();
@@ -430,32 +445,59 @@ app.get('/api/checkout-url/:sessionId', async (req, res) => {
 // ===========================================
 app.post('/webhook/fungies', async (req, res) => {
     try {
-        // Verify webhook signature if secret is configured
-        const signature = req.headers['x-fungies-signature'] || req.headers['x-webhook-signature'];
+        console.log('=== WEBHOOK RECEIVED ===');
+        console.log('Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+        
+        // Verify webhook signature (Fungies uses x-fngs-signature header)
+        const signature = req.headers['x-fngs-signature'];
         if (process.env.FUNGIES_WEBHOOK_SECRET && signature) {
-            const expectedSignature = crypto
-                .createHmac('sha256', process.env.FUNGIES_WEBHOOK_SECRET)
-                .update(JSON.stringify(req.body))
-                .digest('hex');
+            const hmac = crypto.createHmac('sha256', process.env.FUNGIES_WEBHOOK_SECRET);
+            const expectedSignature = `sha256_${hmac.update(JSON.stringify(req.body)).digest('hex')}`;
             
-            if (signature !== expectedSignature && signature !== `sha256=${expectedSignature}`) {
+            if (signature !== expectedSignature) {
                 console.error('Invalid webhook signature');
+                console.error('Expected:', expectedSignature);
+                console.error('Received:', signature);
                 return res.status(401).json({ error: 'Invalid signature' });
             }
+            console.log('✅ Signature verified');
         }
         
         const event = req.body;
-        console.log('Webhook received:', event.type);
+        console.log('Event type:', event.type);
         
-        if (event.type === 'checkout.completed' || event.type === 'payment.succeeded') {
-            const { client_reference_id, customer_email } = event.data;
+        // Fungies uses 'payment_success' event type
+        if (event.type === 'payment_success') {
+            const { items, order, customer } = event.data;
             
-            const session = await getPendingPurchase(client_reference_id);
+            console.log('Customer:', customer);
+            console.log('Order:', order);
+            console.log('Items:', items);
+            
+            // Get customer email to find pending session
+            const customerEmail = customer?.email;
+            
+            // Try to find session by email or by custom field
+            let session = null;
+            
+            // First try custom fields if set up (sessionId field)
+            if (items && items[0]?.customFields?.sessionId) {
+                session = await getPendingPurchase(items[0].customFields.sessionId);
+            }
+            
+            // Fallback: find by email
+            if (!session && customerEmail) {
+                session = await getPendingPurchaseByEmail(customerEmail);
+            }
             
             if (!session) {
-                console.error('Session not found:', client_reference_id);
-                return res.status(200).json({ received: true });
+                console.error('Session not found for customer:', customerEmail);
+                // Still return 200 to acknowledge receipt
+                return res.status(200).json({ received: true, error: 'Session not found' });
             }
+            
+            console.log('Found session:', session);
             
             // Get a key from stock
             const licenseKey = await getAvailableKey(session.product);
@@ -484,16 +526,17 @@ app.post('/webhook/fungies', async (req, res) => {
             await logPurchase(session.discord_id, session.discord_username, licenseKey, session.product, dmSuccess);
             
             // Clean up
-            await deletePendingPurchase(client_reference_id);
+            await deletePendingPurchase(session.session_id);
             
-            console.log('License delivered:', licenseKey, 'to', session.discord_username);
+            console.log('✅ License delivered:', licenseKey, 'to', session.discord_username);
         }
         
         res.status(200).json({ received: true });
         
     } catch (error) {
         console.error('Webhook error:', error);
-        res.status(500).json({ error: 'Webhook failed' });
+        // Still return 200 to prevent retries on our errors
+        res.status(200).json({ received: true, error: error.message });
     }
 });
 
