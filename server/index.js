@@ -76,8 +76,17 @@ async function initDatabase() {
                 email VARCHAR(255),
                 product VARCHAR(50) NOT NULL,
                 access_token TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'pending',
+                license_key VARCHAR(255)
             )
+        `);
+        
+        // Add status column if it doesn't exist (for existing tables)
+        await client.query(`
+            ALTER TABLE pending_purchases 
+            ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+            ADD COLUMN IF NOT EXISTS license_key VARCHAR(255)
         `);
         
         console.log('✅ Database tables initialized');
@@ -303,6 +312,19 @@ async function getMostRecentPendingPurchase() {
     }
 }
 
+// Mark purchase as completed
+async function markPurchaseCompleted(sessionId, licenseKey) {
+    const client = await pool.connect();
+    try {
+        await client.query(
+            `UPDATE pending_purchases SET status = 'completed', license_key = $2 WHERE session_id = $1`,
+            [sessionId, licenseKey]
+        );
+    } finally {
+        client.release();
+    }
+}
+
 // Delete pending purchase
 async function deletePendingPurchase(sessionId) {
     const client = await pool.connect();
@@ -455,6 +477,21 @@ app.get('/api/checkout-url/:sessionId', async (req, res) => {
     res.json({ checkoutUrl: baseUrl });
 });
 
+// Check payment status endpoint (polled by waiting page)
+app.get('/api/payment-status/:sessionId', async (req, res) => {
+    const session = await getPendingPurchase(req.params.sessionId);
+    
+    if (!session) {
+        return res.status(404).json({ status: 'not_found' });
+    }
+    
+    res.json({ 
+        status: session.status || 'pending',
+        product: session.product,
+        productName: PRODUCTS[session.product]?.name
+    });
+});
+
 // ===========================================
 // FUNGIES WEBHOOK
 // ===========================================
@@ -539,14 +576,14 @@ app.post('/webhook/fungies', async (req, res) => {
                 session.product
             );
             
+            // Mark session as completed (so the waiting page can redirect to success)
+            await markPurchaseCompleted(session.session_id, licenseKey);
+            
             // Send license via DM
             const dmSuccess = await sendLicenseDM(session.discord_id, licenseKey, PRODUCTS[session.product]);
             
             // Log purchase (always sent to you with all details + delivery status)
             await logPurchase(session.discord_id, session.discord_username, licenseKey, session.product, dmSuccess);
-            
-            // Clean up
-            await deletePendingPurchase(session.session_id);
             
             console.log('✅ License delivered:', licenseKey, 'to', session.discord_username);
         }
