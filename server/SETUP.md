@@ -229,7 +229,7 @@ NODE_ENV = production
 WEBSITE_URL = https://placeholder.up.railway.app
 ```
 
-⚠️ We'll update `WEBSITE_URL` in the next step after we get the domain.
+⚠️ We'll add `FUNGIES_WEBHOOK_SECRET` and update `WEBSITE_URL` after getting the domain.
 
 ## Step 4.6: Generate Domain
 
@@ -258,18 +258,30 @@ WEBSITE_URL = https://placeholder.up.railway.app
 2. Select your SwimHub app
 3. Go to **OAuth2** → **General**
 4. Under **Redirects**, click **"Add Redirect"**
-5. Enter: `https://YOUR-RAILWAY-URL.up.railway.app/auth/discord/callback`
+5. Enter: `https://swimhub-production.up.railway.app/auth/discord/callback`
    - Replace `YOUR-RAILWAY-URL` with your actual Railway domain
+   swimhub-production.up.railway.app
 6. Click **Save Changes**
 
 ## Step 5.2: Configure Fungies Webhook
 
 1. Go to Fungies.io Dashboard
-2. Go to **Settings** → **Webhooks** (or Developer/API section)
-3. Add a new webhook:
-   - **URL**: `https://YOUR-RAILWAY-URL.up.railway.app/webhook/fungies`
+2. Go to **Settings** → **API** or **Webhooks** section
+3. Find or generate your **Webhook Secret** (API Secret)
+4. Copy the secret and save it
+5. Add a new webhook endpoint:
+   - **URL**: `https://swimhub-production.up.railway.app/webhook/fungies`
    - **Events**: Select `checkout.completed` or `payment.succeeded` (or both)
-4. Save the webhook
+6. Save the webhook
+
+## Step 5.3: Add Webhook Secret to Railway
+
+1. Go back to Railway → Your service → **Variables**
+2. Add new variable:
+   ```
+   FUNGIES_WEBHOOK_SECRET = (the secret you copied from Fungies)
+   ```
+3. Railway will redeploy
 
 ✅ Everything is connected!
 

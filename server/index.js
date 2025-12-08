@@ -4,6 +4,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { 
     Client, 
@@ -419,6 +420,20 @@ app.get('/api/checkout-url/:sessionId', async (req, res) => {
 // ===========================================
 app.post('/webhook/fungies', async (req, res) => {
     try {
+        // Verify webhook signature if secret is configured
+        const signature = req.headers['x-fungies-signature'] || req.headers['x-webhook-signature'];
+        if (process.env.FUNGIES_WEBHOOK_SECRET && signature) {
+            const expectedSignature = crypto
+                .createHmac('sha256', process.env.FUNGIES_WEBHOOK_SECRET)
+                .update(JSON.stringify(req.body))
+                .digest('hex');
+            
+            if (signature !== expectedSignature && signature !== `sha256=${expectedSignature}`) {
+                console.error('Invalid webhook signature');
+                return res.status(401).json({ error: 'Invalid signature' });
+            }
+        }
+        
         const event = req.body;
         console.log('Webhook received:', event.type);
         
