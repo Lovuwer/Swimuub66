@@ -104,6 +104,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Clean URLs - serve HTML files without .html extension
+app.get('/purchase', (req, res) => res.sendFile(path.join(__dirname, 'public', 'purchase.html')));
+app.get('/checkout', (req, res) => res.sendFile(path.join(__dirname, 'public', 'checkout.html')));
+app.get('/waiting', (req, res) => res.sendFile(path.join(__dirname, 'public', 'waiting.html')));
+app.get('/success', (req, res) => res.sendFile(path.join(__dirname, 'public', 'success.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+
 // ===========================================
 // DISCORD BOT SETUP
 // ===========================================
@@ -372,7 +380,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     const { code, state } = req.query;
     
     if (!code) {
-        return res.redirect('/purchase.html?error=auth_failed');
+        return res.redirect('/purchase?error=auth_failed');
     }
     
     try {
@@ -427,11 +435,11 @@ app.get('/auth/discord/callback', async (req, res) => {
             accessToken: tokens.access_token
         });
         
-        res.redirect(`/checkout.html?session=${sessionId}&product=${product}&user=${encodeURIComponent(user.username)}`);
+        res.redirect(`/checkout?session=${sessionId}&product=${product}&user=${encodeURIComponent(user.username)}`);
         
     } catch (error) {
         console.error('OAuth error:', error);
-        res.redirect('/purchase.html?error=auth_failed');
+        res.redirect('/purchase?error=auth_failed');
     }
 });
 

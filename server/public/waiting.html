@@ -229,7 +229,7 @@
                 <p><i class="fas fa-info-circle"></i> This page will automatically update when your payment is confirmed. Please don't close this tab.</p>
             </div>
             
-            <a href="/purchase.html" class="cancel-link" id="cancelLink">Cancel and go back</a>
+            <a href="/purchase" class="cancel-link" id="cancelLink">Cancel and go back</a>
         </div>
     </div>
     
@@ -306,7 +306,7 @@
             
             // Redirect to success page after 2 seconds
             setTimeout(() => {
-                window.location.href = '/success.html';
+                window.location.href = '/success';
             }, 2000);
         }
         
@@ -321,7 +321,7 @@
             statusBadge.querySelector('i').className = 'fas fa-exclamation-circle';
             
             // Replace cancel link with retry button
-            cancelLink.outerHTML = '<a href="/purchase.html" class="retry-btn"><i class="fas fa-redo"></i> Try Again</a>';
+            cancelLink.outerHTML = '<a href="/purchase" class="retry-btn"><i class="fas fa-redo"></i> Try Again</a>';
         }
         
         // Start polling

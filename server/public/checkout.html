@@ -207,7 +207,7 @@
     <div class="gradient-orb orb-2"></div>
     
     <div class="checkout-container">
-        <a href="purchase.html" class="back-btn">
+        <a href="/purchase" class="back-btn">
             <i class="fas fa-arrow-left"></i> Back to Pricing
         </a>
         
@@ -255,7 +255,7 @@
                 <i class="fas fa-lock"></i> Proceed to Secure Checkout
             </button>
             
-            <a href="purchase.html" class="cancel-btn">Cancel and go back</a>
+            <a href="/purchase" class="cancel-btn">Cancel and go back</a>
             
             <div class="security-note">
                 <p><i class="fas fa-shield-alt"></i> Secure checkout powered by Fungies.io. Your payment information is encrypted and protected.</p>
@@ -324,7 +324,7 @@
                             window.open(checkoutData.checkoutUrl, '_blank');
                             
                             // Redirect to waiting page that will poll for payment completion
-                            window.location.href = `/waiting.html?session=${sessionId}`;
+                            window.location.href = `/waiting?session=${sessionId}`;
                         } else {
                             throw new Error('Failed to get checkout URL');
                         }
