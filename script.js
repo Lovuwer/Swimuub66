@@ -29,9 +29,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Validate purchase links before redirect
-    const fungiesButtons = document.querySelectorAll('.fungies-btn');
+    const polarButtons = document.querySelectorAll('.polar-btn, .fungies-btn');
     
-    fungiesButtons.forEach(btn => {
+    polarButtons.forEach(btn => {
         btn.addEventListener('click', function(e) {
             const href = this.getAttribute('href');
             const productType = this.getAttribute('data-product');
@@ -68,8 +68,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const allowedDomains = [
                 'dsc.gg',
                 'discord.gg',
-                'fungies.io',
-                'divine.land'
+                'polar.sh',
+                'divine.land',
+                'github.com'
             ];
             
             // Check if URL is from allowed domain
@@ -133,34 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Pricing card tilt effect on mouse move
-    const pricingCards = document.querySelectorAll('.pricing-card');
-    
-    pricingCards.forEach(card => {
-        card.addEventListener('mousemove', function(e) {
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            
-            const rotateX = (y - centerY) / 20;
-            const rotateY = (centerX - x) / 20;
-            
-            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-10px) scale(1.02)`;
-        });
-        
-        card.addEventListener('mouseleave', function() {
-            card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateY(0) scale(1)';
-            card.style.transition = 'transform 0.5s ease';
-        });
-        
-        card.addEventListener('mouseenter', function() {
-            card.style.transition = 'transform 0.1s ease';
-        });
-    });
-    
+
     // Ripple effect on CTA buttons
     const ctaButtons = document.querySelectorAll('.cta-button');
     
@@ -225,60 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
         observer.observe(card);
     });
     
-    // Payment icon hover sound effect (visual feedback)
-    const paymentIcons = document.querySelectorAll('.payment-icon');
-    
-    paymentIcons.forEach(icon => {
-        icon.addEventListener('mouseenter', function() {
-            this.style.animation = 'bounce 0.3s ease';
-        });
-        
-        icon.addEventListener('animationend', function() {
-            this.style.animation = '';
-        });
-    });
-    
-    // Add bounce animation
-    const bounceStyle = document.createElement('style');
-    bounceStyle.textContent = `
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-        }
-    `;
-    document.head.appendChild(bounceStyle);
-    
-    // Parallax effect for gradient orbs
-    document.addEventListener('mousemove', function(e) {
-        const orbs = document.querySelectorAll('.gradient-orb');
-        const mouseX = e.clientX / window.innerWidth;
-        const mouseY = e.clientY / window.innerHeight;
-        
-        orbs.forEach((orb, index) => {
-            const speed = (index + 1) * 20;
-            const x = (mouseX - 0.5) * speed;
-            const y = (mouseY - 0.5) * speed;
-            
-            orb.style.transform = `translate(${x}px, ${y}px)`;
-        });
-    });
-    
-    // Typing effect for page title (optional)
-    const pageTitle = document.querySelector('.page-title');
-    if (pageTitle && pageTitle.textContent.includes('Purchase')) {
-        const originalText = pageTitle.textContent;
-        pageTitle.textContent = '';
-        pageTitle.style.opacity = '1';
-        
-        let i = 0;
-        const typeWriter = () => {
-            if (i < originalText.length) {
-                pageTitle.textContent += originalText.charAt(i);
-                i++;
-                setTimeout(typeWriter, 50);
-            }
-        };
-        
-        setTimeout(typeWriter, 300);
-    }
+
+
 });

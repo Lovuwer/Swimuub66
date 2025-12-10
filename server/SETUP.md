@@ -1,6 +1,6 @@
 # SwimHub - Complete Deployment Guide
 
-Deploy your SwimHub website + Discord bot on Railway with Fungies.io payments.
+Deploy your SwimHub website + Discord bot on Railway with Polar.sh payments.
 
 ---
 
@@ -8,7 +8,7 @@ Deploy your SwimHub website + Discord bot on Railway with Fungies.io payments.
 
 1. Website live at `https://your-app.up.railway.app`
 2. Discord bot that auto-delivers license keys
-3. Fungies.io payment processing
+3. Polar.sh payment processing (supports Card, Crypto, and more)
 4. All purchase notifications sent to your Discord DMs
 
 ---
@@ -17,7 +17,7 @@ Deploy your SwimHub website + Discord bot on Railway with Fungies.io payments.
 
 - GitHub account
 - Discord account  
-- Fungies.io account (for payments)
+- Polar.sh account (for payments)
 - Railway account (free tier works)
 
 ---
@@ -108,39 +108,53 @@ ADMIN_USER_ID = (your user ID)
 
 ---
 
-# PART 2: FUNGIES.IO SETUP
+# PART 2: POLAR.SH SETUP
 
-## Step 2.1: Create Your Products
+## Step 2.1: Create Polar.sh Account
 
-1. Go to **https://fungies.io** and log in
-2. Go to your Dashboard
+1. Go to **https://polar.sh** and sign up / log in
+2. Create a new organization or use personal account
+3. Go to **Dashboard**
+
+## Step 2.2: Create Your Products
+
+1. Go to **Products** in the sidebar
+2. Click **"Create Product"**
 3. Create these products:
 
-| Product Name | Price | Duration |
-|--------------|-------|----------|
-| SwimHub Regular (Monthly) | $3.50 | 30 days |
-| SwimHub Regular (Lifetime) | $7.00 | Lifetime |
-| SwimHub Master (Monthly) | $8.00 | 30 days |
-| SwimHub Master (Lifetime) | $16.00 | Lifetime |
-| SwimHub Nightly | $40.00 | Lifetime |
+| Product Name | Price | Type |
+|--------------|-------|------|
+| SwimHub Regular (Monthly) | $3.50 | One-time |
+| SwimHub Regular (Lifetime) | $7.00 | One-time |
+| SwimHub Master (Monthly) | $8.00 | One-time |
+| SwimHub Master (Lifetime) | $16.00 | One-time |
+| SwimHub Nightly | $40.00 | One-time |
 
-## Step 2.2: Get Checkout URLs
+**Tip:** Enable all payment methods (Card, Apple Pay, etc.)
+
+## Step 2.3: Get Checkout Links
 
 For EACH product you created:
 1. Click on the product
-2. Find the checkout URL or share link
-3. It looks like: `https://app.fungies.io/checkout/abc123xyz`
+2. Click **"Create checkout link"** or go to **Checkout Links**
+3. Select the product and click **Create**
+4. Copy the checkout link - it looks like: `https://buy.polar.sh/polar_cl_XXXXXXXXXXXX`
 
 **Save these:**
 ```
-FUNGIES_URL_REGULAR_MONTHLY = https://app.fungies.io/checkout/xxxxx
-FUNGIES_URL_REGULAR_LIFETIME = https://app.fungies.io/checkout/xxxxx
-FUNGIES_URL_MASTER_MONTHLY = https://app.fungies.io/checkout/xxxxx
-FUNGIES_URL_MASTER_LIFETIME = https://app.fungies.io/checkout/xxxxx
-FUNGIES_URL_NIGHTLY = https://app.fungies.io/checkout/xxxxx
+POLAR_URL_REGULAR_MONTHLY = https://buy.polar.sh/polar_cl_xxxxx
+POLAR_URL_REGULAR_LIFETIME = https://buy.polar.sh/polar_cl_xxxxx
+POLAR_URL_MASTER_MONTHLY = https://buy.polar.sh/polar_cl_xxxxx
+POLAR_URL_MASTER_LIFETIME = https://buy.polar.sh/polar_cl_xxxxx
+POLAR_URL_NIGHTLY = https://buy.polar.sh/polar_cl_xxxxx
 ```
 
-⚠️ **Webhook setup comes AFTER Railway deployment** (Step 4.6)
+**Important:** Set the **Success URL** for each checkout link to:
+```
+https://YOUR-RAILWAY-URL/success.html?checkout_id={CHECKOUT_ID}
+```
+
+⚠️ **Webhook setup comes AFTER Railway deployment** (Step 5.2)
 
 ---
 
@@ -219,17 +233,17 @@ DISCORD_CLIENT_SECRET = (from Step 1.2)
 DISCORD_GUILD_ID = (from Step 1.6)
 ADMIN_USER_ID = (from Step 1.6)
 
-FUNGIES_URL_REGULAR_MONTHLY = (from Step 2.2)
-FUNGIES_URL_REGULAR_LIFETIME = (from Step 2.2)
-FUNGIES_URL_MASTER_MONTHLY = (from Step 2.2)
-FUNGIES_URL_MASTER_LIFETIME = (from Step 2.2)
-FUNGIES_URL_NIGHTLY = (from Step 2.2)
+POLAR_URL_REGULAR_MONTHLY = (from Step 2.3)
+POLAR_URL_REGULAR_LIFETIME = (from Step 2.3)
+POLAR_URL_MASTER_MONTHLY = (from Step 2.3)
+POLAR_URL_MASTER_LIFETIME = (from Step 2.3)
+POLAR_URL_NIGHTLY = (from Step 2.3)
 
 NODE_ENV = production
 WEBSITE_URL = https://placeholder.up.railway.app
 ```
 
-⚠️ We'll add `FUNGIES_WEBHOOK_SECRET` and update `WEBSITE_URL` after getting the domain.
+⚠️ We'll add `POLAR_WEBHOOK_SECRET` and update `WEBSITE_URL` after getting the domain.
 
 ## Step 4.6: Generate Domain
 
@@ -263,23 +277,27 @@ WEBSITE_URL = https://placeholder.up.railway.app
    swimhub-production.up.railway.app
 6. Click **Save Changes**
 
-## Step 5.2: Configure Fungies Webhook
+## Step 5.2: Configure Polar.sh Webhook
 
-1. Go to Fungies.io Dashboard
-2. Go to **Settings** → **API** or **Webhooks** section
-3. Find or generate your **Webhook Secret** (API Secret)
-4. Copy the secret and save it
-5. Add a new webhook endpoint:
-   - **URL**: `https://swimhub-production.up.railway.app/webhook/fungies`
-   - **Events**: Select `checkout.completed` or `payment.succeeded` (or both)
-6. Save the webhook
+1. Go to **https://polar.sh** → Your organization/account
+2. Go to **Settings** → **Webhooks**
+3. Click **"Add Endpoint"**
+4. Configure:
+   - **Endpoint URL**: `https://YOUR-RAILWAY-URL/webhook/polar`
+     (e.g., `https://swimhub-production.up.railway.app/webhook/polar`)
+   - **Events**: Select these events:
+     - ✅ `checkout.completed`
+     - ✅ `order.created`
+   - **Secret**: Polar will generate one, or you can enter your own
+5. Click **Create**
+6. Copy the **Webhook Secret** shown
 
 ## Step 5.3: Add Webhook Secret to Railway
 
 1. Go back to Railway → Your service → **Variables**
 2. Add new variable:
    ```
-   FUNGIES_WEBHOOK_SECRET = (the secret you copied from Fungies)
+   POLAR_WEBHOOK_SECRET = (the secret you copied from Polar)
    ```
 3. Railway will redeploy
 
@@ -319,7 +337,7 @@ Type `/stock` to see how many keys you have for each product.
 3. Click any **"Purchase Monthly"** or **"Purchase Lifetime"** button
 4. Authorize with Discord
 5. Review order → Click **"Proceed to Secure Checkout"**
-6. Complete a test payment on Fungies
+6. Complete a test payment on Polar.sh
 7. You should:
    - See the success page
    - Receive the license key in Discord DMs

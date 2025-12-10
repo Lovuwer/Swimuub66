@@ -478,14 +478,63 @@ app.get('/api/checkout-url/:sessionId', async (req, res) => {
         return res.status(404).json({ error: 'Session not found' });
     }
     
-    // Static checkout URLs from your Fungies dashboard
-    // Format: https://roxgames.app.fungies.io/checkout/PRODUCT_ID
+    // Product IDs for Polar.sh (set these in Railway env vars)
+    const productIds = {
+        'regular-monthly': process.env.POLAR_PRODUCT_REGULAR_MONTHLY,
+        'regular-lifetime': process.env.POLAR_PRODUCT_REGULAR_LIFETIME,
+        'master-monthly': process.env.POLAR_PRODUCT_MASTER_MONTHLY,
+        'master-lifetime': process.env.POLAR_PRODUCT_MASTER_LIFETIME,
+        'nightly': process.env.POLAR_PRODUCT_NIGHTLY
+    };
+    
+    const productId = productIds[session.product];
+    
+    // If we have a Polar API token and product ID, create a checkout session via API
+    if (process.env.POLAR_ACCESS_TOKEN && productId) {
+        try {
+            const response = await fetch('https://api.polar.sh/v1/checkouts', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.POLAR_ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    products: [productId],
+                    metadata: {
+                        sessionId: req.params.sessionId,
+                        discordId: session.discord_id,
+                        discordUsername: session.discord_username
+                    },
+                    customer_email: session.email || undefined,
+                    embed_origin: process.env.WEBSITE_URL,
+                    success_url: `${process.env.WEBSITE_URL}/success.html?session=${req.params.sessionId}`
+                })
+            });
+            
+            if (response.ok) {
+                const checkout = await response.json();
+                console.log('Created Polar checkout session:', checkout.id);
+                return res.json({ 
+                    checkoutUrl: checkout.url,
+                    checkoutId: checkout.id,
+                    embedEnabled: true
+                });
+            } else {
+                const errorData = await response.json();
+                console.error('Polar API error:', errorData);
+            }
+        } catch (error) {
+            console.error('Failed to create Polar checkout:', error);
+        }
+    }
+    
+    // Fallback to checkout link URLs
     const checkoutUrls = {
-        'regular-monthly': process.env.FUNGIES_URL_REGULAR_MONTHLY,
-        'regular-lifetime': process.env.FUNGIES_URL_REGULAR_LIFETIME,
-        'master-monthly': process.env.FUNGIES_URL_MASTER_MONTHLY,
-        'master-lifetime': process.env.FUNGIES_URL_MASTER_LIFETIME,
-        'nightly': process.env.FUNGIES_URL_NIGHTLY
+        'regular-monthly': process.env.POLAR_URL_REGULAR_MONTHLY || process.env.FUNGIES_URL_REGULAR_MONTHLY,
+        'regular-lifetime': process.env.POLAR_URL_REGULAR_LIFETIME || process.env.FUNGIES_URL_REGULAR_LIFETIME,
+        'master-monthly': process.env.POLAR_URL_MASTER_MONTHLY || process.env.FUNGIES_URL_MASTER_MONTHLY,
+        'master-lifetime': process.env.POLAR_URL_MASTER_LIFETIME || process.env.FUNGIES_URL_MASTER_LIFETIME,
+        'nightly': process.env.POLAR_URL_NIGHTLY || process.env.FUNGIES_URL_NIGHTLY
     };
     
     const baseUrl = checkoutUrls[session.product];
@@ -494,18 +543,18 @@ app.get('/api/checkout-url/:sessionId', async (req, res) => {
         return res.status(400).json({ error: 'Product not configured' });
     }
     
-    // Create custom_data with session info for reliable matching
-    const customData = {
+    // Create metadata with session info for reliable matching
+    const metadata = {
         sessionId: req.params.sessionId,
         discordId: session.discord_id,
         discordUsername: session.discord_username
     };
     
-    // Build checkout URL with custom_data parameter
-    const checkoutUrl = `${baseUrl}?custom_data=${encodeURIComponent(JSON.stringify(customData))}`;
+    // Build checkout URL with metadata parameter
+    const checkoutUrl = `${baseUrl}?metadata=${encodeURIComponent(JSON.stringify(metadata))}`;
     
     console.log('Checkout URL for session:', req.params.sessionId, 'product:', session.product);
-    res.json({ checkoutUrl });
+    res.json({ checkoutUrl, embedEnabled: true });
 });
 
 // Check payment status endpoint (polled by waiting page)
@@ -670,6 +719,158 @@ app.post('/webhook/fungies', async (req, res) => {
 });
 
 // ===========================================
+// POLAR.SH WEBHOOK
+// ===========================================
+// Store processed webhook IDs for idempotency
+const processedWebhooks = new Set();
+
+app.post('/webhook/polar', async (req, res) => {
+    try {
+        console.log('=== POLAR WEBHOOK RECEIVED ===');
+        console.log('Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+        
+        // Verify webhook signature (Polar uses webhook-signature header)
+        const signature = req.headers['webhook-signature'] || req.headers['x-polar-signature'];
+        const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
+        
+        if (webhookSecret && signature) {
+            const payload = JSON.stringify(req.body);
+            const hmac = crypto.createHmac('sha256', webhookSecret);
+            const expectedSignature = hmac.update(payload).digest('hex');
+            
+            // Handle different signature formats
+            const signatureValue = signature.includes('=') ? signature.split('=')[1] : signature;
+            
+            if (signatureValue !== expectedSignature) {
+                console.error('Invalid Polar webhook signature');
+                console.error('Expected:', expectedSignature);
+                console.error('Received:', signatureValue);
+                return res.status(401).json({ error: 'Invalid signature' });
+            }
+            console.log('✅ Polar signature verified');
+        }
+        
+        const event = req.body;
+        const eventId = event.id || event.event_id || `${Date.now()}-${Math.random()}`;
+        
+        // Idempotency check - prevent duplicate processing
+        if (processedWebhooks.has(eventId)) {
+            console.log('⚠️ Duplicate webhook ignored:', eventId);
+            return res.status(200).json({ received: true, duplicate: true });
+        }
+        processedWebhooks.add(eventId);
+        
+        // Clean up old webhook IDs (keep last 1000)
+        if (processedWebhooks.size > 1000) {
+            const idsArray = Array.from(processedWebhooks);
+            for (let i = 0; i < 500; i++) {
+                processedWebhooks.delete(idsArray[i]);
+            }
+        }
+        
+        console.log('Event type:', event.type);
+        
+        // Polar webhook event types: checkout.created, checkout.updated, order.created, subscription.created, etc.
+        const successEvents = ['checkout.completed', 'order.created', 'order.paid', 'payment.success', 'payment_success'];
+        
+        if (successEvents.includes(event.type)) {
+            const data = event.data || event;
+            const customer = data.customer || data.user || {};
+            const metadata = data.metadata || data.custom_data || data.customData || {};
+            
+            // Parse metadata if it's a string
+            let parsedMetadata = metadata;
+            if (typeof metadata === 'string') {
+                try {
+                    parsedMetadata = JSON.parse(metadata);
+                } catch (e) {
+                    console.log('Failed to parse metadata:', e);
+                    parsedMetadata = {};
+                }
+            }
+            
+            console.log('Customer:', customer);
+            console.log('Metadata:', parsedMetadata);
+            
+            const customerEmail = customer.email || data.email;
+            
+            // Try to find session - multiple fallback methods
+            let session = null;
+            
+            // Method 1: Check metadata for sessionId (most reliable)
+            if (parsedMetadata.sessionId) {
+                console.log('Looking up session by metadata sessionId:', parsedMetadata.sessionId);
+                session = await getPendingPurchase(parsedMetadata.sessionId);
+            }
+            
+            // Method 2: Try to find by Discord ID from metadata
+            if (!session && parsedMetadata.discordId) {
+                console.log('Looking up session by metadata discordId:', parsedMetadata.discordId);
+                session = await getPendingPurchaseByDiscordId(parsedMetadata.discordId);
+            }
+            
+            // Method 3: Try to find by email (fallback)
+            if (!session && customerEmail) {
+                console.log('Trying email lookup:', customerEmail);
+                session = await getPendingPurchaseByEmail(customerEmail);
+            }
+            
+            // Method 4: Get most recent pending purchase (last resort)
+            if (!session) {
+                console.log('No match found, trying most recent pending purchase...');
+                session = await getMostRecentPendingPurchase();
+            }
+            
+            if (!session) {
+                console.error('No pending session found for Polar customer:', customerEmail);
+                await notifyAdminSessionNotFound(customerEmail, null, data);
+                return res.status(200).json({ received: true, error: 'Session not found' });
+            }
+            
+            console.log('Found session:', session);
+            
+            // Get a key from stock
+            const licenseKey = await getAvailableKey(session.product);
+            
+            if (!licenseKey) {
+                console.error('No keys in stock for:', session.product);
+                await notifyOutOfStock(session.product, session.discord_id);
+                return res.status(200).json({ received: true, error: 'Out of stock' });
+            }
+            
+            // Claim the key
+            await claimKey(licenseKey, session.discord_id);
+            
+            // Assign to user
+            await assignLicenseToUser(
+                session.discord_id,
+                session.discord_username,
+                licenseKey,
+                session.product
+            );
+            
+            // Mark session as completed
+            await markPurchaseCompleted(session.session_id, licenseKey);
+            
+            // Send license via DM
+            const dmSuccess = await sendLicenseDM(session.discord_id, licenseKey, PRODUCTS[session.product]);
+            
+            // Log purchase
+            await logPurchase(session.discord_id, session.discord_username, licenseKey, session.product, dmSuccess);
+            
+            console.log('✅ Polar: License delivered:', licenseKey, 'to', session.discord_username);
+        }
+        
+        res.status(200).json({ received: true });
+        
+    } catch (error) {
+        console.error('Polar webhook error:', error);
+        res.status(200).json({ received: true, error: error.message });
+    }
+});
+
+// ===========================================
 // DISCORD BOT FUNCTIONS
 // ===========================================
 async function sendLicenseDM(discordId, licenseKey, product) {
@@ -677,7 +878,7 @@ async function sendLicenseDM(discordId, licenseKey, product) {
         const user = await discordClient.users.fetch(discordId);
         
         const embed = new EmbedBuilder()
-            .setColor(0x7c3aed)
+            .setColor(0x00d4ff)  // Updated to cyan accent color
             .setTitle('🎉 SwimHub License Key')
             .setDescription('Thank you for your purchase!')
             .addFields(

@@ -18,9 +18,9 @@
         }
         
         .success-card {
-            background: rgba(30, 30, 30, 0.9);
+            background: rgba(30, 41, 59, 0.9);
             backdrop-filter: blur(20px);
-            border-radius: 24px;
+            border-radius: 20px;
             padding: 50px 40px;
             border: 1px solid rgba(16, 185, 129, 0.3);
             text-align: center;
@@ -90,18 +90,18 @@
         }
         
         .success-subtitle {
-            color: #9ca3af;
+            color: #94a3b8;
             font-size: 1.1rem;
             margin-bottom: 30px;
             line-height: 1.6;
         }
         
         .dm-notice {
-            background: linear-gradient(135deg, rgba(88, 101, 242, 0.15), rgba(124, 58, 237, 0.15));
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.12), rgba(0, 212, 255, 0.12));
             border-radius: 16px;
             padding: 25px;
             margin-bottom: 30px;
-            border: 1px solid rgba(88, 101, 242, 0.3);
+            border: 1px solid rgba(88, 101, 242, 0.25);
         }
         
         .dm-notice-icon {
@@ -118,23 +118,23 @@
         }
         
         .dm-notice-text {
-            color: #9ca3af;
+            color: #94a3b8;
             font-size: 0.95rem;
             line-height: 1.5;
         }
         
         .dm-notice-highlight {
-            color: #a78bfa;
+            color: #00d4ff;
             font-weight: 600;
         }
         
         .steps-container {
             text-align: left;
-            background: rgba(124, 58, 237, 0.1);
+            background: rgba(0, 212, 255, 0.08);
             border-radius: 16px;
             padding: 25px;
             margin-bottom: 30px;
-            border: 1px solid rgba(124, 58, 237, 0.2);
+            border: 1px solid rgba(0, 212, 255, 0.15);
         }
         
         .steps-title {
@@ -148,7 +148,7 @@
         }
         
         .steps-title i {
-            color: #a78bfa;
+            color: #00d4ff;
         }
         
         .step-item {
@@ -166,7 +166,7 @@
         .step-number {
             width: 28px;
             height: 28px;
-            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            background: linear-gradient(135deg, #00d4ff, #3b82f6);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -220,7 +220,7 @@
             gap: 10px;
             padding: 14px 28px;
             background: transparent;
-            color: #9ca3af;
+            color: #94a3b8;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             font-size: 1rem;
@@ -231,9 +231,9 @@
         }
         
         .home-btn:hover {
-            border-color: rgba(124, 58, 237, 0.5);
+            border-color: rgba(0, 212, 255, 0.5);
             color: #fff;
-            background: rgba(124, 58, 237, 0.1);
+            background: rgba(0, 212, 255, 0.1);
         }
         
         .confetti {
@@ -275,18 +275,19 @@
         }
         
         .support-note p {
-            color: #6b7280;
+            color: #64748b;
             font-size: 0.85rem;
             margin: 0;
         }
         
         .support-note a {
-            color: #a78bfa;
+            color: #00d4ff;
             text-decoration: none;
         }
         
         .support-note a:hover {
             text-decoration: underline;
+            color: #3b82f6;
         }
     </style>
 </head>
@@ -343,7 +344,7 @@
                 <a href="https://dsc.gg/swimhub" target="_blank" class="discord-btn">
                     <i class="fab fa-discord"></i> Open Discord
                 </a>
-                <a href="/" class="home-btn">
+                <a href="index.html" class="home-btn">
                     <i class="fas fa-home"></i> Back to Home
                 </a>
             </div>
@@ -362,7 +363,7 @@
         // Create confetti effect
         function createConfetti() {
             const confettiContainer = document.getElementById('confetti');
-            const colors = ['#7c3aed', '#a855f7', '#10b981', '#f59e0b', '#3b82f6', '#ef4444'];
+            const colors = ['#00d4ff', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444'];
             
             for (let i = 0; i < 50; i++) {
                 setTimeout(() => {
