@@ -1,5 +1,6 @@
 // index.js - full file (drop into your project, restart server)
-// Main fixes: raw body capture + Polar signature base64 verification + notifyAdminSessionNotFound fix
+// Includes: raw body capture for webhooks, Polar + Fungies handlers, Discord bot, DB helpers.
+// Also serves checkout.html at /checkout and /checkout.html (Option A)
 
 require('dotenv').config();
 const express = require('express');
@@ -35,6 +36,14 @@ app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---------- Option A: serve checkout page at /checkout and /checkout.html ----------
+app.get('/checkout', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'checkout.html'));
+});
+app.get('/checkout.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'checkout.html'));
+});
+
 // ---------- Discord client ----------
 const discordClient = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessages],
@@ -43,7 +52,6 @@ const discordClient = new Client({
 
 // ---------- Utility DB helpers (kept simple and synchronous-looking) ----------
 async function initDatabase() {
-  // ensure tables exist - you likely already have these, so this can be no-op
   const client = await pool.connect();
   try {
     await client.query(`
@@ -148,7 +156,6 @@ async function markPurchaseCompleted(sessionId, licenseKey) {
   const client = await pool.connect();
   try {
     await client.query('UPDATE pending_purchases SET status = $1 WHERE session_id = $2', ['completed', sessionId]);
-    // optionally record licenseKey in purchase record - add schema if desired
   } finally {
     client.release();
   }
@@ -367,6 +374,7 @@ app.get('/auth/discord/callback', async (req, res) => {
       accessToken: tokens.access_token
     });
 
+    // Redirect to checkout.html on your site (use getWebsiteUrl() if frontend is separate)
     res.redirect(`/checkout?session=${sessionId}&product=${product}&user=${encodeURIComponent(user.username)}`);
   } catch (error) {
     console.error('OAuth error:', error);
@@ -455,7 +463,6 @@ app.post('/webhook/polar', async (req, res) => {
   try {
     console.log('=== POLAR WEBHOOK RECEIVED ===');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    // avoid logging the entire raw body for privacy, but can log summary
     console.log('Body (parsed):', JSON.stringify(req.body && typeof req.body === 'object' ? { type: req.body.type } : req.body));
 
     // Verify webhook signature (Polar sends header like "v1,<base64>")
@@ -468,7 +475,6 @@ app.post('/webhook/polar', async (req, res) => {
       const hmac = crypto.createHmac('sha256', webhookSecret);
       const expectedBase64 = hmac.update(req.rawBody || Buffer.from(JSON.stringify(req.body))).digest('base64');
 
-      // Optional debug logs - remove when stable
       console.log('Polar signature header:', signatureHeader);
       console.log('Extracted signature value:', signatureValue);
       console.log('Expected (base64):', expectedBase64);
@@ -485,7 +491,6 @@ app.post('/webhook/polar', async (req, res) => {
     const event = req.body;
     const eventId = event.id || event.event_id || `${Date.now()}-${Math.random()}`;
 
-    // Idempotency
     if (processedWebhooks.has(eventId)) {
       console.log('⚠️ Duplicate webhook ignored:', eventId);
       return res.status(200).json({ received: true, duplicate: true });
@@ -557,7 +562,7 @@ app.post('/webhook/polar', async (req, res) => {
   }
 });
 
-// ---------- Fungies webhook (kept logic, adjusted to use rawBody for HMAC) ----------
+// ---------- Fungies webhook (kept for backward compatibility) ----------
 app.post('/webhook/fungies', async (req, res) => {
   try {
     console.log('=== FUNGIES WEBHOOK RECEIVED ===');
@@ -584,7 +589,6 @@ app.post('/webhook/fungies', async (req, res) => {
       const { items, order, customer } = event.data;
       const customerEmail = customer?.email;
 
-      // similar session lookup as Polar...
       let session = null;
       let customData = null;
       if (order?.customData) customData = order.customData;
@@ -664,7 +668,6 @@ async function registerCommands() {
   }
 }
 
-// Minimal interaction handler stub (extend as you need)
 discordClient.on('interactionCreate', async (interaction) => {
   if (interaction.isCommand()) {
     const name = interaction.commandName;
