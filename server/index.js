@@ -378,10 +378,13 @@ app.get('/auth/discord', (req, res) => {
     }
     
     const state = Buffer.from(JSON.stringify({ product, timestamp: Date.now() })).toString('base64');
+    const redirectUri = `${getWebsiteUrl()}/auth/discord/callback`;
+
+    console.log('Generated Redirect URI for /auth/discord:', redirectUri);
     
     const params = new URLSearchParams({
         client_id: process.env.DISCORD_CLIENT_ID,
-        redirect_uri: `${getWebsiteUrl()}/auth/discord/callback`,
+        redirect_uri: redirectUri,
         response_type: 'code',
         scope: 'identify email guilds.join',
         state: state
@@ -400,6 +403,8 @@ app.get('/auth/discord/callback', async (req, res) => {
     try {
         const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
         const { product } = stateData;
+        const redirectUri = `${getWebsiteUrl()}/auth/discord/callback`;
+        console.log('Using Redirect URI for /auth/discord/callback:', redirectUri);
         
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
@@ -409,7 +414,7 @@ app.get('/auth/discord/callback', async (req, res) => {
                 client_secret: process.env.DISCORD_CLIENT_SECRET,
                 grant_type: 'authorization_code',
                 code: code,
-                redirect_uri: `${getWebsiteUrl()}/auth/discord/callback`
+                redirect_uri: redirectUri
             })
         });
         
