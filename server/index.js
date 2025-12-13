@@ -1153,6 +1153,14 @@ discordClient.on('interactionCreate', async (interaction) => {
         // Construct product type: e.g., "master-monthly", "regular-lifetime"
         const productType = `${tier}-${duration}`;
 
+        // Validate product type against PRODUCTS constant
+        if (!PRODUCTS[productType]) {
+          return interaction.reply({ 
+            content: `❌ Invalid product type: ${productType}. Valid types: ${Object.keys(PRODUCTS).join(', ')}`, 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+
         // Show a modal for entering license keys (one per line)
         const modal = new ModalBuilder()
           .setCustomId(`addlicense_modal_${productType}`)
@@ -1244,7 +1252,7 @@ discordClient.on('interactionCreate', async (interaction) => {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         let addedCount = 0;
-        let failedKeys = [];
+        let duplicateCount = 0;
 
         for (const key of keys) {
           try {
@@ -1252,14 +1260,18 @@ discordClient.on('interactionCreate', async (interaction) => {
             if (result) {
               addedCount++;
             } else {
-              failedKeys.push(key);
+              // Key already exists (ON CONFLICT DO NOTHING returned no rows)
+              duplicateCount++;
             }
           } catch (err) {
-            failedKeys.push(key);
+            console.error('Error adding key:', err);
           }
         }
 
-        const stats = await getLicenseStats();
+        // Get stock stats for the specific product type
+        const allStock = await getStockByProductType();
+        const productStock = allStock.find(s => s.product_type === productType);
+        const availableForType = productStock?.available || '0';
 
         const embed = new EmbedBuilder()
           .setColor('#10b981')
@@ -1267,13 +1279,13 @@ discordClient.on('interactionCreate', async (interaction) => {
           .addFields(
             { name: 'Product Type', value: productType, inline: true },
             { name: 'Keys Added', value: addedCount.toString(), inline: true },
-            { name: 'Total Stock', value: stats.available?.toString() || '0', inline: true }
+            { name: 'Available Stock', value: availableForType.toString(), inline: true }
           );
 
-        if (failedKeys.length > 0) {
+        if (duplicateCount > 0) {
           embed.addFields({
-            name: '⚠️ Failed Keys',
-            value: `${failedKeys.length} keys failed (may be duplicates)`,
+            name: '⚠️ Duplicate Keys',
+            value: `${duplicateCount} keys were already in the database`,
             inline: false
           });
         }
