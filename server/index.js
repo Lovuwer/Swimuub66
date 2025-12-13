@@ -21,7 +21,8 @@ const {
   PermissionFlagsBits,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  MessageFlags
 } = require('discord.js');
 
 const app = express();
@@ -138,6 +139,12 @@ async function initDatabase() {
     await client.query(`
       ALTER TABLE license_stock 
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now();
+    `);
+    
+    // Add status column if missing from old schema
+    await client.query(`
+      ALTER TABLE license_stock 
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available';
     `);
     
     // Add checkout_id and owner_email columns for Polar integration
@@ -1097,17 +1104,17 @@ discordClient.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'addlicense') {
       const isAdmin = interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
       if (!isAdmin) {
-        return interaction.reply({ content: '❌ Admin only', ephemeral: true });
+        return interaction.reply({ content: '❌ Admin only', flags: MessageFlags.Ephemeral });
       }
 
       const keysInput = interaction.options.getString('keys');
       const keys = keysInput.split(',').map(k => k.trim()).filter(k => k);
 
       if (keys.length === 0) {
-        return interaction.reply({ content: '❌ No valid keys provided', ephemeral: true });
+        return interaction.reply({ content: '❌ No valid keys provided', flags: MessageFlags.Ephemeral });
       }
 
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       for (const key of keys) {
         await addLicenseKeyToStock(key.toUpperCase(), 'swimhub');
@@ -1128,7 +1135,7 @@ discordClient.on('interactionCreate', async (interaction) => {
     else if (interaction.commandName === 'stock') {
       const isAdmin = interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
       if (!isAdmin) {
-        return interaction.reply({ content: '❌ Admin only', ephemeral: true });
+        return interaction.reply({ content: '❌ Admin only', flags: MessageFlags.Ephemeral });
       }
 
       const stats = await getLicenseStats();
@@ -1142,18 +1149,18 @@ discordClient.on('interactionCreate', async (interaction) => {
           { name: 'Total', value: stats.total?.toString() || '0', inline: true }
         );
 
-      interaction.reply({ embeds: [embed], ephemeral: true });
+      interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
     else if (interaction.commandName === 'license') {
       await interaction.reply({
         content: 'Check your Discord DMs for your license key information',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   } catch (error) {
     console.error('Command error:', error);
     if (!interaction.replied) {
-      interaction.reply({ content: '❌ Command failed', ephemeral: true });
+      interaction.reply({ content: '❌ Command failed', flags: MessageFlags.Ephemeral });
     }
   }
 });
