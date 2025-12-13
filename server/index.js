@@ -458,6 +458,63 @@ async function addLicenseToLicensesTable(licenseKey) {
   }
 }
 
+async function checkLowStockAndNotify() {
+  const LOW_STOCK_THRESHOLD = 10;
+  
+  try {
+    const stats = await getLicensesStats();
+    
+    if (parseInt(stats.available) <= LOW_STOCK_THRESHOLD && parseInt(stats.available) > 0) {
+      // Send notification to admin
+      if (discordClient && process.env.ADMIN_DISCORD_ID) {
+        try {
+          const admin = await discordClient.users.fetch(process.env.ADMIN_DISCORD_ID);
+          const embed = new EmbedBuilder()
+            .setColor('#f59e0b')
+            .setTitle('⚠️ Low License Stock Alert')
+            .setDescription('License key inventory is running low!')
+            .addFields(
+              { name: 'Available Keys', value: stats.available.toString(), inline: true },
+              { name: 'Used Keys', value: stats.used.toString(), inline: true },
+              { name: 'Total Keys', value: stats.total.toString(), inline: true }
+            )
+            .setFooter({ text: 'SwimHub License System • Please add more keys soon' })
+            .setTimestamp();
+          
+          await admin.send({ embeds: [embed] });
+          console.log('⚠️ Low stock notification sent to admin');
+        } catch (error) {
+          console.error('Failed to send low stock notification:', error.message);
+        }
+      }
+    } else if (parseInt(stats.available) === 0) {
+      // Critical: Out of stock
+      if (discordClient && process.env.ADMIN_DISCORD_ID) {
+        try {
+          const admin = await discordClient.users.fetch(process.env.ADMIN_DISCORD_ID);
+          const embed = new EmbedBuilder()
+            .setColor('#ef4444')
+            .setTitle('🚨 OUT OF STOCK - CRITICAL')
+            .setDescription('No license keys available! Customers cannot complete purchases.')
+            .addFields(
+              { name: 'Available Keys', value: '0', inline: true },
+              { name: 'Status', value: '❌ Out of Stock', inline: true }
+            )
+            .setFooter({ text: 'SwimHub License System • ADD KEYS IMMEDIATELY' })
+            .setTimestamp();
+          
+          await admin.send({ embeds: [embed] });
+          console.log('🚨 Out of stock notification sent to admin');
+        } catch (error) {
+          console.error('Failed to send out of stock notification:', error.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking stock levels:', error);
+  }
+}
+
 // ---------- WEBHOOK HANDLERS ----------
 
 async function sendLicenseDM(discordId, licenseKey, product) {
@@ -585,6 +642,42 @@ app.get('/checkout.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'checkout.html'));
 });
 
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connection
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    
+    // Check Discord bot status
+    const discordStatus = discordClient && discordClient.isReady() ? 'connected' : 'disconnected';
+    
+    // Get stock levels
+    const stats = await getLicensesStats();
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        database: 'connected',
+        discord: discordStatus
+      },
+      stock: {
+        available: parseInt(stats.available),
+        total: parseInt(stats.total),
+        status: parseInt(stats.available) > 10 ? 'good' : parseInt(stats.available) > 0 ? 'low' : 'out_of_stock'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Polar webhook - GET handler for verification
 app.get('/webhook/polar', (req, res) => {
   res.status(200).json({
@@ -705,6 +798,9 @@ app.post('/webhook/polar', webhookLimiter, async (req, res) => {
 
         const licenseKey = result.rows[0].key_value;
         console.log(`✅ Assigned license key: ${licenseKey} to ${customer_email}`);
+
+        // Check stock levels and notify if low
+        await checkLowStockAndNotify();
 
         // Send Discord notification to admin
         if (discordClient && process.env.ADMIN_DISCORD_ID) {
