@@ -31,6 +31,7 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const LOW_STOCK_THRESHOLD = parseInt(process.env.LOW_STOCK_THRESHOLD) || 10;
 
 // ---------- CONSTANTS ----------
 const PRODUCTS = {
@@ -459,8 +460,6 @@ async function addLicenseToLicensesTable(licenseKey) {
 }
 
 async function checkLowStockAndNotify() {
-  const LOW_STOCK_THRESHOLD = 10;
-  
   try {
     const stats = await getLicensesStats();
     
@@ -666,7 +665,7 @@ app.get('/health', async (req, res) => {
       stock: {
         available: parseInt(stats.available),
         total: parseInt(stats.total),
-        status: parseInt(stats.available) > 10 ? 'good' : parseInt(stats.available) > 0 ? 'low' : 'out_of_stock'
+        status: parseInt(stats.available) > LOW_STOCK_THRESHOLD ? 'good' : parseInt(stats.available) > 0 ? 'low' : 'out_of_stock'
       }
     });
   } catch (error) {
